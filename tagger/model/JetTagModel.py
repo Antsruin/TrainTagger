@@ -52,6 +52,7 @@ class JetTagModel(ABC):
     run_schema = {"verbose" : And(int, lambda s: s in [1,2,3]),
                   "debug": bool,
                   "num_threads" : And(int, lambda s: 1 <= s <= 128),
+                  "use_gnn" : bool              
                  }
 
     def load_yaml(self, yaml_path: str):
@@ -97,16 +98,19 @@ class JetTagModel(ABC):
         Must be written for child class if you want to run the synthesis steps
         """
 
-    def predict(self, X_test: npt.NDArray[np.float64]) -> tuple:
+    def predict(self, X_test: npt.NDArray[np.float64], ADJ_test: npt.NDArray[np.float64] = None) -> tuple:
         """Predict method for model
 
         Args:
             X_test (npt.NDArray[np.float64]): Input X test
-
+            ADJ_test (npt.NDArray[np.float64], optional): Input ADJ test. Defaults to None.
         Returns:
             tuple: (class_predictions , pt_ratio_predictions)
         """
-        model_outputs = self.jet_model.predict(X_test)
+        if self.run_config.get('use_gnn', False):
+            model_outputs = self.jet_model.predict({'model_input': X_test, 'adj_input': ADJ_test})
+        else:
+            model_outputs = self.jet_model.predict(X_test)
         class_predictions = model_outputs[0]
         pt_ratio_predictions = model_outputs[1].flatten()
         return (class_predictions, pt_ratio_predictions)

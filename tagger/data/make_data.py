@@ -11,13 +11,16 @@ if __name__ == "__main__":
     parser.add_argument(
         '-i',
         '--input',
-        default='/eos/cms/store/cmst3/group/l1tr/sewuchte/l1teg/fp_jettuples_090125/All200.root',
+        # default='/eos/cms/store/cmst3/group/l1tr/sewuchte/l1teg/fp_jettuples_191125_151X/GluGluHHTo2B2Tau_PU200.root',
+        default='./Analysis/jetTuple_extended_5.root',
+        # default='/eos/cms/store/cmst3/group/l1tr/sewuchte/l1teg/fp_jettuples_090125/All200.root',
         help='Path to input training data',
     )
     parser.add_argument('-r', '--ratio', default=1, type=float, help='Ratio (0-1) of the input data root file to process')
     parser.add_argument('-s', '--step', default='100MB', help='The maximum memory size to process input root file')
     parser.add_argument(
-        '-e', '--extras', default='extra_fields', help='Which extra fields to add to output tuples, in puppicand_fields.yml'
+        '-e', '--extras', default='extra_emulation_fields', help='Which extra fields to add to output tuples, in puppicand_fields.yml'
+        # '-e', '--extras', default='extra_fields', help='Which extra fields to add to output tuples, in puppicand_fields.yml'
     )
     parser.add_argument('-t', '--tree', default='outnano/Jets', help='Tree within the ntuple containing the jets')
 

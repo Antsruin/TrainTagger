@@ -141,19 +141,23 @@ def _split_flavor(data):
 
     return data[jet_ptmin_gen], class_labels
 
-def _get_puppicand_fields(tag):
+# def _get_puppicand_fields(tag):
+def _get_pfcand_fields(tag):
 
     # Get the directory of the current file (tools.py)
     current_dir = os.path.dirname(__file__)
 
     # Construct the path to puppicand_fields.yml relative to tools.py
-    puppicand_fields_path = os.path.join(current_dir, "puppicand_fields.yml")
+    # puppicand_fields_path = os.path.join(current_dir, "puppicand_fields.yml")
+    pfcand_fields_path = os.path.join(current_dir, "pfcand_fields.yml")
 
     # Load the YAML file as a dictionary
-    with open(puppicand_fields_path, "r") as file:
-        puppicand_fields = yaml.safe_load(file)
+    # with open(puppicand_fields_path, "r") as file:
+    #     puppicand_fields = yaml.safe_load(file)
+    with open(pfcand_fields_path, "r") as file: pfcand_fields = yaml.safe_load(file)
 
-    return puppicand_fields[tag]
+    # return puppicand_fields[tag]
+    return pfcand_fields[tag]
 
 
 def _pad_fill(array, target):
@@ -164,7 +168,8 @@ def _pad_fill(array, target):
 
 def _make_nn_inputs(data_split, tag, n_parts):
 
-    features = _get_puppicand_fields(tag)
+    # features = _get_pfcand_fields(tag)
+    features = _get_pfcand_fields(tag)
     # Concatenate all the inputs
     inputs_list = []
 
@@ -172,7 +177,7 @@ def _make_nn_inputs(data_split, tag, n_parts):
     # https://awkward-array.org/doc/main/user-guide/how-to-restructure-concatenate.html
     # Also pad and fill them with 0 to the number of constituents we are using (nconstit)
     for field in features:
-        field_array = data_split["jet_puppicand"][field]
+        field_array = data_split["jet_pfcand"][field]
 
         padded_filled_array = _pad_fill(field_array, n_parts)
         inputs_list.append(padded_filled_array[:, :, np.newaxis])
@@ -208,11 +213,15 @@ def _save_dataset_metadata(outdir, class_labels, tag, extras):
 
     dataset_metadata_file = os.path.join(outdir, 'variables.json')
 
-    metadata = {
-        "outputs": class_labels,
-        "inputs": _get_puppicand_fields(tag),
-        "extras": _get_puppicand_fields(extras),
-    }
+    # metadata = {
+    #     "outputs": class_labels,
+    #     "inputs": _get_puppicand_fields(tag),
+    #     "extras": _get_puppicand_fields(extras),
+    # }
+    metadata = {"outputs": class_labels,
+            "inputs": _get_pfcand_fields(tag),
+            "extras": _get_pfcand_fields(extras),}
+
 
     with open(dataset_metadata_file, "w") as f:
         json.dump(metadata, f, indent=4)
@@ -227,7 +236,8 @@ def _process_chunk(data_split, tag, extras, n_parts, chunk, outdir):
 
     # Create the NN inputs
     _make_nn_inputs(data_split, tag, n_parts)
-    extra_features = _get_puppicand_fields(extras)
+    # extra_features = _get_puppicand_fields(extras)
+    extra_features = _get_pfcand_fields(extras)
 
     # Save them to a root file
     save_fields = ['nn_inputs', 'class_label', 'target_pt', 'target_pt_phys'] + extra_features
@@ -239,7 +249,14 @@ def _process_chunk(data_split, tag, extras, n_parts, chunk, outdir):
     outfile = os.path.join(outdir, f'data_chunk_{chunk}.root')
     with uproot.recreate(outfile) as f:
         f["data"] = filtered_data
+        print(f"Saved chunk {chunk} to {outfile}")
 
+    with uproot.open(outfile) as f:
+        print(f.keys())
+        print(f["data"].keys())
+        print(uproot.open(outfile)["data"]["nn_inputs"].array(library="np").shape)
+        print(uproot.open(outfile).classnames())
+        
     # Log metadata
     metadata_file = os.path.join(outdir, "metadata.json")
     _save_chunk_metadata(metadata_file, chunk, len(data_split), outfile)  # Chunk, Entries, Outfile
@@ -320,7 +337,86 @@ def to_ML(data, class_labels):
     return X, y, pt_target, truth_pt, reco_pt
 
 
-def load_data(outdir, percentage, test_ratio=0.1, fields=None):
+# Constants at module level
+ETA_LSB = 0.01           # 1 hw eta unit = 0.01 in eta
+PHI_LSB = np.pi / 720    # 1 hw phi unit ≈ 0.004363 rad
+
+def _build_X_and_ADJ(split, input_vars, knn):
+    """
+    Convert awkward array split into padded X and ADJ numpy arrays.
+    
+    Fixes applied vs original:
+      1. deta/dphi converted from hw integer units to physical (eta, rad)
+         before computing dR for kNN graph — fixes LSB mismatch bug.
+      2. Adjacency matrix row-normalized (D^-1 A) so each row sums to 1
+         (or 0 for padding rows) — fixes unnormalized aggregation bias.
+    """
+
+    X_ak   = split["nn_inputs"]
+    X      = ak.to_numpy(X_ak).astype(np.float32)  # (n_jets, max_cands, n_feats)
+    n_jets, max_cands, n_feats = X.shape
+
+    # Get real candidate counts from isfilled (index 16)
+    isfilled_idx       = input_vars.index("isfilled")
+    real_cands_per_jet = X[:, :, isfilled_idx].sum(axis=1).astype(int)
+
+    # deta/dphi indices for graph building
+    deta_idx = input_vars.index("deta")
+    dphi_idx = input_vars.index("dphi")
+
+    # FIX 1: convert hw units -> physical units before any dR calculation
+    deta_all = X[:, :, deta_idx] * ETA_LSB   # (n_jets, max_cands), now in Δη
+    dphi_all = X[:, :, dphi_idx] * PHI_LSB   # (n_jets, max_cands), now in Δφ rad
+
+    ADJ = np.zeros((n_jets, max_cands, max_cands), dtype=np.float32)
+
+    for i in range(n_jets):
+        n   = real_cands_per_jet[i]
+        pad = min(n, max_cands)
+
+        if pad <= 1:
+            # Single candidate: self-loop only, row-normalized = 1/1 = 1
+            ADJ[i, 0, 0] = 1.0
+            continue
+
+        deta_i = deta_all[i, :pad]   # (pad,) in physical eta units
+        dphi_i = dphi_all[i, :pad]   # (pad,) in radians
+
+        # pairwise dR in physical units (FIX 1 makes this correct)
+        deta_c = deta_i[:, None] - deta_i[None, :]                         # (pad, pad)
+        dphi_c = (dphi_i[:, None] - dphi_i[None, :] + np.pi) % (2*np.pi) - np.pi
+        dR_i   = np.sqrt(deta_c**2 + dphi_c**2)                            # true ΔR
+        np.fill_diagonal(dR_i, np.inf)  # exclude self from kNN ranking
+
+        k_act  = min(knn, pad - 1)
+        nbrs_i = np.argsort(dR_i, axis=1)[:, :k_act]  # (pad, k_act) neighbor indices
+
+        # Build binary symmetric adjacency + self-loops
+        adj_i  = np.zeros((pad, pad), dtype=np.float32)
+        for ii in range(pad):
+            for jj in nbrs_i[ii]:
+                adj_i[ii, jj] = 1.0
+                adj_i[jj, ii] = 1.0   # symmetrize
+        np.fill_diagonal(adj_i, 1.0)  # self-loops
+
+        # FIX 2: row-normalize -> D^-1 A (each row sums to 1)
+        deg_i = adj_i.sum(axis=1, keepdims=True)   # (pad, 1) node degrees
+        deg_i[deg_i == 0] = 1.0                    # safety (never hit: self-loops ensure deg>=1)
+        adj_i = adj_i / deg_i                      # row-stochastic
+
+        # Write into full (max_cands x max_cands) block; padding rows stay 0
+        ADJ[i, :pad, :pad] = adj_i
+
+    # Other arrays needed downstream
+    y        = ak.to_numpy(split["class_label"]).astype(int)
+    pt       = ak.to_numpy(split["target_pt"]).astype(np.float32)
+    pt_phys  = ak.to_numpy(split["jet_pt_phys"]).astype(np.float32)
+
+    return X, ADJ, y, pt, pt_phys
+
+
+
+def load_data(outdir, percentage, test_ratio=0.1, fields=None, build_graph=False, knn=5):
     """
     Load a specified percentage of the dataset using uproot.concatenate.
 
@@ -373,12 +469,34 @@ def load_data(outdir, percentage, test_ratio=0.1, fields=None):
         input_vars = variables['inputs']
         extra_vars = variables['extras']
 
-    return train_data, test_data, class_labels, input_vars, extra_vars
+    if not build_graph:
+        return train_data, test_data, class_labels, input_vars, extra_vars
+
+    # ── GNN branch: build X and ADJ ──────────────────────────────────────
+    print("Building KNN graphs (k={})...".format(knn))
+
+    print("  Building train graphs...")
+    X_train, ADJ_train, y_train_raw, pt_train, reco_pt_train = _build_X_and_ADJ(
+        train_data, input_vars, knn
+    )
+    print("  Building test graphs...")
+    X_test, ADJ_test, y_test_raw, pt_test, reco_pt_test = _build_X_and_ADJ(
+        test_data, input_vars, knn
+    )
+
+    print(f"X_train shape  : {X_train.shape}")
+    print(f"ADJ_train shape: {ADJ_train.shape}")
+    print(f"X_test shape   : {X_test.shape}")
+
+    return (X_train, ADJ_train, y_train_raw,  pt_train,  reco_pt_train,
+            X_test,  ADJ_test,  y_test_raw,   pt_test,   reco_pt_test,
+            class_labels, input_vars, extra_vars)
 
 
 def make_data(
     infile='/eos/cms/store/cmst3/group/l1tr/sewuchte/l1teg/fp_ntuples_v131Xv9/baselineTRK_4param_221124/All200.root',
-    outdir='training_data/',
+    # outdir='training_data/',
+    outdir='./Analysis/emulation_data_1/',
     tag=INPUT_TAG,
     extras=EXTRA_FIELDS,
     n_parts=N_PARTICLES,
@@ -443,5 +561,6 @@ def make_data(
 
         # Number of chunk for indexing files
         chunk += 1
+        print(f"Processed {num_entries_done}/{num_entries} entries | {np.round(num_entries_done / num_entries * 100, 1)}%")
         if num_entries_done / num_entries >= ratio:
             break

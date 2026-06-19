@@ -1,0 +1,187 @@
+{
+  "Model": {
+    "Precision": {
+      "default": "fixed<16,6>"
+    },
+    "ReuseFactor": 1,
+    "Strategy": "Latency",
+    "BramFactor": 1000000000,
+    "TraceOutput": false
+  },
+  "LayerName": {
+    "model_input": {
+      "Trace": false,
+      "Precision": {
+        "result": "ap_fixed<24,12,AP_RND,AP_SAT>"
+      }
+    },
+    "bn_input": {
+      "Trace": true,
+      "Precision": "ap_fixed<24,12,AP_RND,AP_SAT>",
+      "result": "ap_fixed<24,12,AP_RND,AP_SAT>"
+    },
+    "adj_input": {
+      "Trace": false,
+      "Precision": {
+        "result": "ap_fixed<24,12,AP_RND,AP_SAT>"
+      }
+    },
+    "gcn_dense_0": {
+      "Trace": true,
+      "Precision": {
+        "result": "auto",
+        "weight": "fixed<9,3,TRN,WRAP,0>",
+        "bias": "fixed<9,3,TRN,WRAP,0>"
+      }
+    },
+    "gcn_dense_0_linear": {
+      "Trace": false,
+      "Precision": {
+        "result": "auto"
+      }
+    },
+    "gcn_agg_0": {
+      "Trace": true,
+      "Precision": "ap_fixed<24,12,AP_RND,AP_SAT>"
+    },
+    "gcn_act_0": {
+      "Trace": true,
+      "Precision": {
+        "result": "ufixed<9,0,RND_CONV,SAT,0>"
+      }
+    },
+    "gcn_dense_1": {
+      "Trace": true,
+      "Precision": {
+        "result": "auto",
+        "weight": "fixed<9,3,TRN,WRAP,0>",
+        "bias": "fixed<9,3,TRN,WRAP,0>"
+      }
+    },
+    "gcn_dense_1_linear": {
+      "Trace": false,
+      "Precision": {
+        "result": "auto"
+      }
+    },
+    "gcn_agg_1": {
+      "Trace": true,
+      "Precision": "ap_fixed<24,12,AP_RND,AP_SAT>"
+    },
+    "gcn_act_1": {
+      "Trace": true,
+      "Precision": {
+        "result": "ufixed<9,0,RND_CONV,SAT,0>"
+      }
+    },
+    "act_pool": {
+      "Trace": true,
+      "Precision": {
+        "result": "fixed<18,9,RND_CONV,SAT,0>"
+      }
+    },
+    "pool": {
+      "Trace": true,
+      "Precision": {
+        "result": "auto"
+      }
+    },
+    "dense_0": {
+      "Trace": true,
+      "Precision": {
+        "result": "auto",
+        "weight": "fixed<9,3,TRN,WRAP,0>",
+        "bias": "fixed<9,3,TRN,WRAP,0>"
+      }
+    },
+    "dense_0_linear": {
+      "Trace": false,
+      "Precision": {
+        "result": "auto"
+      }
+    },
+    "act_0": {
+      "Trace": true,
+      "Precision": {
+        "result": "ufixed<9,0,RND_CONV,SAT,0>"
+      }
+    },
+    "dense_1": {
+      "Trace": true,
+      "Precision": {
+        "result": "auto",
+        "weight": "fixed<9,3,TRN,WRAP,0>",
+        "bias": "fixed<9,3,TRN,WRAP,0>"
+      }
+    },
+    "dense_1_linear": {
+      "Trace": false,
+      "Precision": {
+        "result": "auto"
+      }
+    },
+    "act_1": {
+      "Trace": true,
+      "Precision": {
+        "result": "ufixed<9,0,RND_CONV,SAT,0>"
+      }
+    },
+    "jet_pt_regression_dense": {
+      "Trace": true,
+      "Precision": {
+        "result": "auto",
+        "weight": "fixed<9,3,TRN,WRAP,0>",
+        "bias": "fixed<9,3,TRN,WRAP,0>"
+      }
+    },
+    "jet_pt_regression_dense_linear": {
+      "Trace": false,
+      "Precision": {
+        "result": "auto"
+      }
+    },
+    "jet_id_classification": {
+      "Trace": true,
+      "Precision": {
+        "result": "auto",
+        "weight": "fixed<9,3,TRN,WRAP,0>",
+        "bias": "fixed<9,3,TRN,WRAP,0>"
+      }
+    },
+    "jet_id_classification_linear": {
+      "Trace": false,
+      "Precision": {
+        "result": "auto"
+      }
+    },
+    "jet_pt_regression_act": {
+      "Trace": true,
+      "Precision": {
+        "result": "ufixed<9,0,RND_CONV,SAT,0>"
+      }
+    },
+    "jet_id_output": {
+      "Trace": true,
+      "Precision": {
+        "result": "ap_ufixed<24,12,AP_RND,AP_SAT>"
+      },
+      "Implementation": "latency"
+    },
+    "pT_output": {
+      "Trace": true,
+      "Precision": {
+        "result": "ap_fixed<24,12,AP_RND,AP_SAT>",
+        "weight": "fixed<16,7,TRN,WRAP,0>",
+        "bias": "fixed<16,7,TRN,WRAP,0>"
+      },
+      "Implementation": "latency"
+    },
+    "pT_output_linear": {
+      "Trace": false,
+      "Precision": {
+        "result": "auto"
+      }
+    }
+  },
+  "IOType": "io_parallel"
+}

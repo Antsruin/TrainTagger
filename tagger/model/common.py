@@ -202,6 +202,7 @@ def fromFolder(save_path: str, newoutput_dir: str = "None") -> JetTagModel:
     for file in os.listdir(folder):
         if file.endswith(".yaml"):
             yaml_path = os.path.join(folder, file)
+            break
 
     model = fromYaml(yaml_path, folder, recreate=recreate)
     model.load(folder)
