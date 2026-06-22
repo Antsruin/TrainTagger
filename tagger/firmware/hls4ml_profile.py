@@ -50,15 +50,34 @@ def getReports(indir):
 
 def doPlots(model, outputdir, inputdir):
     os.makedirs(outputdir, exist_ok=True)
+    
+    # Check if this is a GNN model
+    is_gnn = model.run_config.get('use_gnn', False)
 
-    data, _, class_labels, input_vars, extra_vars = load_data(inputdir, percentage=100, test_ratio=0.0)
-    X_test, Y_test, pt_target, truth_pt, _ = to_ML(data, class_labels)
+    if is_gnn:
+        (X_train, ADJ_train, y_train_raw, pt_train, reco_pt_train,
+        X_test,  ADJ_test,  y_test_raw,  pt_test,  reco_pt_test,
+        class_labels, input_vars, extra_vars) = load_data(
+            inputdir,
+            percentage=100,
+            test_ratio=0.0,
+            build_graph=is_gnn,
+            knn=5
+        )
+        inputs = {
+            'model_input': np.ascontiguousarray(X_test),
+            'adj_input':   np.ascontiguousarray(ADJ_test),
+        }
+    else:
+        data, _, class_labels, input_vars, extra_vars = load_data(inputdir, percentage=100, test_ratio=0.0)
+        X_test, Y_test, pt_target, truth_pt, _ = to_ML(data, class_labels)
+        inputs = np.ascontiguousarray(X_test)
 
     labels = list(class_labels.keys())
 
     model.firmware_convert("temp", build=False)
-    y_hls, y_ptreg_hls = model.hls_jet_model.predict(np.ascontiguousarray(X_test))
-    y_class, y_ptreg = model.jet_model.predict(np.ascontiguousarray(X_test))
+    y_hls, y_ptreg_hls = model.hls_jet_model.predict(inputs)
+    y_class, y_ptreg = model.jet_model.predict(inputs)
 
     for i, label in enumerate(labels):
         plt.clf()

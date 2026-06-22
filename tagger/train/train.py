@@ -5,19 +5,25 @@ from argparse import ArgumentParser
 import numpy as np
 
 # Import from other modules
-from tagger.data.tools import load_data, to_ML
+from tagger import model
+import tensorflow as tf
+from tagger.data.tools import load_data, to_ML, build_adj_matrix
 from tagger.model.common import fromFolder, fromYaml
 from tagger.plot.basic import basic
+tf.keras.utils.set_random_seed(46)  # not a special number
 
-
-def save_test_data(out_dir, X_test, y_test, truth_pt_test, reco_pt_test):
+def save_test_data(out_dir, X_test, y_test, pt_target_test, truth_pt_test, reco_pt_test, ADJ_test=None):
 
     os.makedirs(os.path.join(out_dir, 'testing_data'), exist_ok=True)
 
     np.save(os.path.join(out_dir, "testing_data/X_test.npy"), X_test)
     np.save(os.path.join(out_dir, "testing_data/y_test.npy"), y_test)
+    np.save(os.path.join(out_dir, "testing_data/pt_target_test.npy"), pt_target_test)
     np.save(os.path.join(out_dir, "testing_data/truth_pt_test.npy"), truth_pt_test)
     np.save(os.path.join(out_dir, "testing_data/reco_pt_test.npy"), reco_pt_test)
+
+    if ADJ_test is not None:
+        np.save(os.path.join(out_dir, "testing_data/ADJ_test.npy"), ADJ_test)
 
     print(f"Test data saved to {out_dir}")
 
@@ -119,6 +125,9 @@ def train_weights(y_train, reco_pt_train, class_labels, weightingMethod, debug):
 
 def train(model, out_dir, percent):
 
+
+    is_gnn = model.run_config.get('use_gnn', False)
+
     # Load the data, class_labels and input variables name, not really using input variable names to be honest
     data_train, data_test, class_labels, input_vars, extra_vars = load_data("training_data/", percentage=percent)
     model.set_labels(
@@ -131,8 +140,7 @@ def train(model, out_dir, percent):
     X_train, y_train, pt_target_train, truth_pt_train, reco_pt_train = to_ML(data_train, class_labels)
 
     # Save X_test, y_test, and truth_pt_test for plotting later
-    X_test, y_test, _, truth_pt_test, reco_pt_test = to_ML(data_test, class_labels)
-    save_test_data(out_dir, X_test, y_test, truth_pt_test, reco_pt_test)
+    X_test, y_test, pt_target_test, truth_pt_test, reco_pt_test = to_ML(data_test, class_labels)
 
     # Calculate the sample weights for training
     sample_weight = train_weights(
@@ -149,12 +157,27 @@ def train(model, out_dir, percent):
     # Get input shape
     input_shape = X_train.shape[1:]  # First dimension is batch size
     output_shape = y_train.shape[1:]
-
-    model.build_model(input_shape, output_shape)
-    # Train it with a pruned model
     num_samples = X_train.shape[0] * (1 - model.training_config['validation_split'])
-    model.compile_model(num_samples)
-    model.fit(X_train, y_train, pt_target_train, sample_weight)
+
+    if is_gnn:
+        ADJ_train = build_adj_matrix(X_train, input_vars, knn=5)
+        ADJ_test  = build_adj_matrix(X_test, input_vars, knn=5)
+        if model.run_config['debug']:
+            print("DEBUG - Checking ADJ_train shape:", ADJ_train.shape)
+            print("DEBUG - Checking ADJ_test shape:", ADJ_test.shape)
+            print("DEBUG - Checking ADJ_train sample:", ADJ_train[5:6,:,:])
+        adj_shape = ADJ_train.shape[1:]
+
+        save_test_data(out_dir, X_test, y_test, pt_target_test, truth_pt_test, reco_pt_test, ADJ_test)
+
+        model.build_model(input_shape, output_shape, adj_shape=adj_shape)
+        model.compile_model(num_samples)
+        model.fit(X_train, y_train, pt_target_train, sample_weight, ADJ_train=ADJ_train)
+    else:
+        save_test_data(out_dir, X_test, y_test, pt_target_test, truth_pt_test, reco_pt_test)
+        model.build_model(input_shape, output_shape)
+        model.compile_model(num_samples)
+        model.fit(X_train, y_train, pt_target_train, sample_weight)
 
     model.save()
 
@@ -168,11 +191,13 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     # Training argument
     parser.add_argument(
-        '-o', '--output', default='output/baseline', help='Output model directory path, also save evaluation plots'
+        # '-o', '--output', default='output2/baseline', help='Output model directory path, also save evaluation plots'
+        '-o', '--output', default='output2/gnn_tagger_v3', help='Output model directory path, also save evaluation plots'
     )
     parser.add_argument('-p', '--percent', default=100, type=int, help='Percentage of how much processed data to train on')
     parser.add_argument(
-        '-y', '--yaml_config', default='tagger/model/configs/baseline_larger.yaml', help='YAML config for model'
+        # '-y', '--yaml_config', default='tagger/model/configs/baseline_larger.yaml', help='YAML config for model'
+        '-y', '--yaml_config', default='tagger/model/configs/gnn_model.yaml', help='YAML config for model'
     )
 
     # Basic ploting

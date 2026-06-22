@@ -154,13 +154,32 @@ class QKerasModel(JetTagModel):
             out_dir (str, optional): Where to save it if not in the output_directory. Defaults to "None".
         """
         # Export the model
-        model_export = tfmot.sparsity.keras.strip_pruning(self.jet_model)
+        is_gnn = self.run_config.get('use_gnn', False)
 
         os.makedirs(os.path.join(out_dir, 'model'), exist_ok=True)
+        keras_path = os.path.join(out_dir, "model/saved_model.keras")
+        h5_path    = os.path.join(out_dir, "model/saved_model.h5")
+        if is_gnn:
+            # Save in native Keras format (.keras inferred from extension)
+            self.jet_model.save(keras_path)
+            print(f"Model saved (Keras format) : {keras_path}")
+
+            # Save in HDF5 format (.h5 inferred from extension)
+            # Keras uses extension to determine format — no extra flags needed
+            self.jet_model.save(h5_path)
+            print(f"Model saved (HDF5 format)  : {h5_path}")
+            return
+
+        model_export = tfmot.sparsity.keras.strip_pruning(self.jet_model)
+
         # Use keras save format !NOT .h5! due to depreciation
-        export_path = os.path.join(out_dir, "model/saved_model.keras")
-        model_export.save(export_path)
-        print(f"Model saved to {export_path}")
+        # export_path = os.path.join(out_dir, "model/saved_model.keras")
+        model_export.save(keras_path)
+        print(f"Model saved to {keras_path}")
+        model_export.save(h5_path)
+        print(f"Model saved to {h5_path}")
+        
+        return
 
     @JetTagModel.load_decorator
     def load(self, out_dir: str = "None"):

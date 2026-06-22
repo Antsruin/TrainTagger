@@ -1,0 +1,195 @@
+Backend: Vitis
+ClockPeriod: 2.5
+ClockUncertainty: 27%
+HLSConfig:
+  LayerName:
+    Conv1D_1:
+      ParallelizationFactor: 16
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Conv1D_1_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Conv1D_2:
+      ParallelizationFactor: 16
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Conv1D_2_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Conv1D_3:
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Conv1D_3_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Dense_1_jetID:
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Dense_1_jetID_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Dense_1_pT:
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Dense_1_pT_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Dense_2_jetID:
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Dense_2_jetID_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Dense_2_pT:
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Dense_2_pT_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Dense_3_jetID:
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Dense_3_jetID_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Dense_3_pT:
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Dense_3_pT_linear:
+      Precision:
+        result: auto
+      Trace: false
+    Dense_4_jetID:
+      Precision:
+        bias: fixed<9,3,TRN,WRAP,0>
+        result: auto
+        weight: fixed<9,3,TRN,WRAP,0>
+      Trace: true
+    Dense_4_jetID_linear:
+      Precision:
+        result: auto
+      Trace: false
+    act_pool:
+      Precision:
+        result: fixed<18,9,RND_CONV,SAT,0>
+      Trace: true
+    jet_id_output:
+      Implementation: latency
+      Precision:
+        result: ap_ufixed<24,12,AP_RND,AP_SAT>
+      Trace: true
+    model_input:
+      Precision: ap_fixed<24,12,AP_RND,AP_SAT>
+      Trace: true
+      result: ap_fixed<24,12,AP_RND,AP_SAT>
+    norm_input:
+      Precision: ap_fixed<24,12,AP_RND,AP_SAT>
+      Trace: true
+      result: ap_fixed<24,12,AP_RND,AP_SAT>
+    pT_output:
+      Implementation: latency
+      Precision:
+        bias: fixed<16,7,TRN,WRAP,0>
+        result: ap_fixed<16,6,AP_RND,AP_SAT>
+        weight: fixed<16,7,TRN,WRAP,0>
+      Trace: true
+    pT_output_linear:
+      Precision:
+        result: auto
+      Trace: false
+    pool:
+      Precision:
+        result: auto
+      Trace: true
+    relu_1:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    relu_1_jetID:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    relu_1_pT:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    relu_2:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    relu_2_jetID:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    relu_2_pT:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    relu_3:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    relu_3_jetID:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    relu_3_pT:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+  Model:
+    BramFactor: 1000000000
+    Precision:
+      default: fixed<16,6>
+    ReuseFactor: 1
+    Strategy: Latency
+    TraceOutput: false
+IOType: io_parallel
+InputData: null
+KerasModel: !keras_model 'firmware/L1TSC4NGJetModel_test/keras_model.keras'
+OutputDir: firmware/L1TSC4NGJetModel_test
+OutputPredictions: null
+Part: xcvu13p-flga2577-2-e
+ProjectName: L1TSC4NGJetModel_test
+Stamp: 1a2fd92e
+Version: 1.0.0
+WriterConfig:
+  Namespace: null
+  WriteTar: false
+  WriteWeightsTxt: true
