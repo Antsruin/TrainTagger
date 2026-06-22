@@ -341,9 +341,13 @@ def to_ML(data, class_labels):
 ETA_LSB = 0.01           # 1 hw eta unit = 0.01 in eta
 PHI_LSB = np.pi / 720    # 1 hw phi unit ≈ 0.004363 rad
 
-def _build_X_and_ADJ(split, input_vars, knn):
+def build_adj_matrix(X, input_vars, knn=5):
     """
     Convert awkward array split into padded X and ADJ numpy arrays.
+    Parameters:
+        X (np.ndarray): (n_jets, max_cands, n_feats) input array, as produced by to_ML.
+        input_vars (list): names of the feature columns in X, in order.
+        knn (int): number of neighbors per node.
     
     Fixes applied vs original:
       1. deta/dphi converted from hw integer units to physical (eta, rad)
@@ -352,14 +356,13 @@ def _build_X_and_ADJ(split, input_vars, knn):
          (or 0 for padding rows) — fixes unnormalized aggregation bias.
     """
 
-    X_ak   = split["nn_inputs"]
-    X      = ak.to_numpy(X_ak).astype(np.float32)  # (n_jets, max_cands, n_feats)
+    X = np.asarray(X, dtype=np.float32)
     n_jets, max_cands, n_feats = X.shape
 
     # Get real candidate counts from isfilled (index 16)
     isfilled_idx       = input_vars.index("isfilled")
     real_cands_per_jet = X[:, :, isfilled_idx].sum(axis=1).astype(int)
-
+    print("DEBUG - Checking real_cands in jet sample 5:", real_cands_per_jet[5])
     # deta/dphi indices for graph building
     deta_idx = input_vars.index("deta")
     dphi_idx = input_vars.index("dphi")
@@ -368,7 +371,13 @@ def _build_X_and_ADJ(split, input_vars, knn):
     deta_all = X[:, :, deta_idx] * ETA_LSB   # (n_jets, max_cands), now in Δη
     dphi_all = X[:, :, dphi_idx] * PHI_LSB   # (n_jets, max_cands), now in Δφ rad
 
-    ADJ = np.zeros((n_jets, max_cands, max_cands), dtype=np.float32)
+    print("DEBUG - Checking deta_all shape:", deta_all.shape)
+    print("DEBUG - Checking dphi_all shape:", dphi_all.shape)
+    print("DEBUG - Checking deta_all sample:", X[:, :, deta_idx][5])
+    print("DEBUG - Checking dphi_all sample:", X[:, :, dphi_idx][5])
+    print("DEBUG - Checking deta_all sample:", deta_all[5])
+    print("DEBUG - Checking dphi_all sample:", dphi_all[5])
+    ADJ = np.zeros((n_jets, max_cands, max_cands), dtype=np.float64)
 
     for i in range(n_jets):
         n   = real_cands_per_jet[i]
@@ -385,7 +394,9 @@ def _build_X_and_ADJ(split, input_vars, knn):
         # pairwise dR in physical units (FIX 1 makes this correct)
         deta_c = deta_i[:, None] - deta_i[None, :]                         # (pad, pad)
         dphi_c = (dphi_i[:, None] - dphi_i[None, :] + np.pi) % (2*np.pi) - np.pi
-        dR_i   = np.sqrt(deta_c**2 + dphi_c**2)                            # true ΔR
+        dR_i   = np.sqrt(deta_c**2 + dphi_c**2)  
+        if(i==5):
+            print("DEBUG - Checking dR_i sample:", dR_i)
         np.fill_diagonal(dR_i, np.inf)  # exclude self from kNN ranking
 
         k_act  = min(knn, pad - 1)
@@ -403,20 +414,21 @@ def _build_X_and_ADJ(split, input_vars, knn):
         deg_i = adj_i.sum(axis=1, keepdims=True)   # (pad, 1) node degrees
         deg_i[deg_i == 0] = 1.0                    # safety (never hit: self-loops ensure deg>=1)
         adj_i = adj_i / deg_i                      # row-stochastic
+        
+        # # FIX 3: row-normalize: D^-1/2 A D^-1/2 
+        # deg_i = adj_i.sum(axis=1)                          # (pad,) — includes self-loop on diagonal
+        # deg_inv_sqrt = 1.0 / np.sqrt(deg_i)
+        # deg_inv_sqrt[np.isinf(deg_inv_sqrt)] = 0.0          # safety for isolated nodes (won't trigger given self-loops)
+        # adj_i = adj_i * deg_inv_sqrt[:, None] * deg_inv_sqrt[None, :]   # D^-1/2 A D^-1/2
 
         # Write into full (max_cands x max_cands) block; padding rows stay 0
         ADJ[i, :pad, :pad] = adj_i
 
-    # Other arrays needed downstream
-    y        = ak.to_numpy(split["class_label"]).astype(int)
-    pt       = ak.to_numpy(split["target_pt"]).astype(np.float32)
-    pt_phys  = ak.to_numpy(split["jet_pt_phys"]).astype(np.float32)
-
-    return X, ADJ, y, pt, pt_phys
+    return ADJ
 
 
 
-def load_data(outdir, percentage, test_ratio=0.1, fields=None, build_graph=False, knn=5):
+def load_data(outdir, percentage, test_ratio=0.1, fields=None):
     """
     Load a specified percentage of the dataset using uproot.concatenate.
 
@@ -468,29 +480,8 @@ def load_data(outdir, percentage, test_ratio=0.1, fields=None, build_graph=False
         class_labels = variables['outputs']
         input_vars = variables['inputs']
         extra_vars = variables['extras']
-
-    if not build_graph:
-        return train_data, test_data, class_labels, input_vars, extra_vars
-
-    # ── GNN branch: build X and ADJ ──────────────────────────────────────
-    print("Building KNN graphs (k={})...".format(knn))
-
-    print("  Building train graphs...")
-    X_train, ADJ_train, y_train_raw, pt_train, reco_pt_train = _build_X_and_ADJ(
-        train_data, input_vars, knn
-    )
-    print("  Building test graphs...")
-    X_test, ADJ_test, y_test_raw, pt_test, reco_pt_test = _build_X_and_ADJ(
-        test_data, input_vars, knn
-    )
-
-    print(f"X_train shape  : {X_train.shape}")
-    print(f"ADJ_train shape: {ADJ_train.shape}")
-    print(f"X_test shape   : {X_test.shape}")
-
-    return (X_train, ADJ_train, y_train_raw,  pt_train,  reco_pt_train,
-            X_test,  ADJ_test,  y_test_raw,   pt_test,   reco_pt_test,
-            class_labels, input_vars, extra_vars)
+    
+    return train_data, test_data, class_labels, input_vars, extra_vars
 
 
 def make_data(

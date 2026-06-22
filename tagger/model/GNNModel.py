@@ -23,7 +23,7 @@ class GNNModel(QKerasModel):
         'model_config': {
             'gcn_units':    [int],   # e.g. [32, 32]
             'dense_units':  [int],   # e.g. [16]
-            'regression_units': int,
+            'regression_units': [int],
             'regression_output_units': int,
             'kernel_initializer' : str,
             "aggregator" : And(str, lambda s: s in  ["mean", "max", "attention"]),
@@ -42,71 +42,11 @@ class GNNModel(QKerasModel):
         'firmware_config' : {"input_precision" : str,
                             "class_precision" : str,
                             "reg_precision": str,
+                            "dense_precision": str,
                             "clock_period" : And(float, lambda s: 0.0 < s <= 10),
                             "fpga_part" : str,
                             "project_name" : str}
     })
-
-    # def build_model(self, input_shape, output_shape, adj_shape=None):
-    #     gcn_units   = self.model_config['gcn_units']    # [32, 32]
-    #     dense_units = self.model_config['dense_units']  # [16]
-    #     bits        = self.model_config['bits']
-    #     integer     = self.model_config['integer']
-    #     n_classes   = output_shape[0]
-
-    #     kq = quantized_bits(bits, integer, keep_negative=1)
-    #     aq = quantized_relu(bits, integer)
-
-    #     # ── Inputs ────────────────────────────────────────────────────────────
-    #     X_in = tf.keras.Input(shape=input_shape, name='model_input')  # (B, 16, 20)
-    #     A_in = tf.keras.Input(shape=adj_shape,   name='adj_input')    # (B, 16, 16)
-
-    #     # ── QBatchNorm on input features ──────────────────────────────────────
-    #     x = QBatchNormalization(name='bn_input')(X_in)                # (B, 16, 20)
-
-    #     # ── GCN: Aggregate → Pool → Transform ─────────────────────────────────
-    #     # Step 1: neighbourhood aggregation via adjacency matmul
-    #     # Dot(axes=[2,1]): contracts axis-2 of A (cols, N) with axis-1 of x (nodes, N)
-    #     # = bmm(A, x), result: (B, 16, 20)
-    #     x = tf.keras.layers.Dot(axes=[2, 1], name='gcn_agg')([A_in, x])
-
-    #     # Step 2: GAP collapses node dimension → (B, 20)
-    #     # mathematically: mean over the 16 aggregated node vectors
-    #     x = tf.keras.layers.GlobalAveragePooling1D(name='gap')(x)
-
-    #     # Step 3: quantize GAP output before dense
-    #     x = QActivation(aq, name='gap_act')(x)
-
-    #     # Step 4: learnable transforms — now just QDense, no special layers
-    #     for i, units in enumerate(gcn_units):
-    #         x = QDense(units, kernel_quantizer=kq, bias_quantizer=kq,
-    #                 name=f'gcn_dense_{i}')(x)
-    #         x = QActivation(aq, name=f'gcn_act_{i}')(x)
-
-    #     # ── Shared Dense Trunk ─────────────────────────────────────────────────
-    #     for i, units in enumerate(dense_units):
-    #         x = QDense(units, kernel_quantizer=kq, bias_quantizer=kq,
-    #                 name=f'dense_{i}')(x)
-    #         x = QActivation(aq, name=f'act_{i}')(x)
-
-    #     # ── Head 1: Classification ─────────────────────────────────────────────
-    #     id_out = QDense(n_classes, kernel_quantizer=kq, bias_quantizer=kq,
-    #                     name='jet_id_dense')(x)
-    #     id_out = tf.keras.layers.Softmax(name='jet_id_output')(id_out)
-
-    #     # ── Head 2: pT Regression ─────────────────────────────────────────────
-    #     pt_out = QDense(8, kernel_quantizer=kq, bias_quantizer=kq,
-    #                     name='pt_dense_1')(x)
-    #     pt_out = QActivation(aq, name='pt_act_1')(pt_out)
-    #     pt_out = QDense(1, kernel_quantizer=kq, bias_quantizer=kq,
-    #                     name='pT_output')(pt_out)
-
-    #     self.jet_model = tf.keras.Model(
-    #         inputs=[X_in, A_in],
-    #         outputs=[id_out, pt_out],
-    #         name='GNNModel'
-    #     )
-    #     self.jet_model.summary()
 
     def build_model(self, input_shape, output_shape, adj_shape=None):
 
@@ -123,11 +63,11 @@ class GNNModel(QKerasModel):
         aq = quantized_relu(bits, 0)
 
         # ── Inputs ────────────────────────────────────────────────────────────
-        X_in = tf.keras.Input(shape=input_shape, name='model_input')  # (B, 16, 20)
-        A_in = tf.keras.Input(shape=adj_shape,   name='adj_input')    # (B, 16, 16)
+        X_in = tf.keras.Input(shape=input_shape, name='model_input', dtype=tf.float32)  # (B, 16, 20)
+        A_in = tf.keras.Input(shape=adj_shape,   name='adj_input', dtype=tf.float32)    # (B, 16, 16)
 
         # ── QBatchNorm on input features ──────────────────────────────────────
-        x = BatchNormalization(name='bn_input')(X_in)                # (B, 16, 20)
+        x = BatchNormalization(name='bn_input',dtype=tf.float32)(X_in)                # (B, 16, 20)
 
         # ── GCN layers: H' = act( A @ (H @ W) )  ────────────────────────────────
         for i, units in enumerate(gcn_units):
@@ -145,10 +85,10 @@ class GNNModel(QKerasModel):
             x = QActivation(aq, name=f'gcn_act_{i}')(x)
 
         # ── GAP collapses node dimension → (B, units_last) ──────────────────────
-        x = QActivation(activation='quantized_bits(18,8)', name='act_pool')(x)
+        # x = QActivation(activation='quantized_bits(18,8)', name='act_pool')(x)
         agg = choose_aggregator(choice=self.model_config['aggregator'], name="pool")
         x = agg(x)
-
+        
         # ── Shared Dense Trunk ────────────────────────────────────────────────
         for i, units in enumerate(dense_units):
             x = QDense(units, kernel_quantizer=kq, bias_quantizer=kq,
@@ -161,9 +101,10 @@ class GNNModel(QKerasModel):
         id_out = tf.keras.layers.Softmax(name='jet_id_output')(id_out)
 
         # ── Head 2: pT Regression ────────────────────────────────────────────
-        pt_out = QDense(regression_units, kernel_quantizer=kq, bias_quantizer=kq,
-                        name='jet_pt_regression_dense')(x)
-        pt_out = QActivation(aq, name='jet_pt_regression_act')(pt_out)
+        for i, units in enumerate(regression_units):
+            x = QDense(units, kernel_quantizer=kq, bias_quantizer=kq,
+                            name=f'jet_pt_reg_{i}')(x)
+            x = QActivation(aq, name=f'jet_pt_reg_act_{i}')(x)
 
         pt_out = QDense(
             regression_output_units,
@@ -179,7 +120,7 @@ class GNNModel(QKerasModel):
                 alpha=self.quantization_config['quantizer_alpha_val'],
             ),
             kernel_initializer=self.model_config['kernel_initializer'],
-            )(pt_out)
+            )(x)
 
         self.jet_model = tf.keras.Model(
             inputs=[X_in, A_in],
@@ -222,7 +163,9 @@ class GNNModel(QKerasModel):
             layer_class = layer.__class__.__name__
 
             if layer_class in ['InputLayer']:
-                config['LayerName'][layer_name]['Precision']['result'] = \
+                config['LayerName'][layer_name]['Precision'] = \
+                    self.firmware_config['input_precision']
+                config['LayerName'][layer_name]['result'] = \
                     self.firmware_config['input_precision']
 
             elif layer_class in ['QBatchNormalization', 'BatchNormalization']:
@@ -230,6 +173,13 @@ class GNNModel(QKerasModel):
                     self.firmware_config['input_precision']
                 config['LayerName'][layer_name]['result'] = \
                     self.firmware_config['input_precision']
+                config['LayerName'][layer_name]['Trace'] = not build
+
+            elif layer_class in ['QDense', 'Dense'] and layer_name not in ['pT_output']:
+                config['LayerName'][layer_name]['Precision']['weight'] = \
+                    self.firmware_config['dense_precision']
+                config['LayerName'][layer_name]['Precision']['bias'] = \
+                    self.firmware_config['dense_precision']
                 config['LayerName'][layer_name]['Trace'] = not build
 
             elif layer_class == 'Dot':
@@ -252,7 +202,12 @@ class GNNModel(QKerasModel):
 
         config['LayerName']['pT_output']['Precision']['result'] = \
             self.firmware_config['reg_precision']
+        config['LayerName']['pT_output']['Precision']['bias'] = \
+            self.firmware_config['reg_precision']
+        config['LayerName']['pT_output']['Precision']['weight'] = \
+            self.firmware_config['reg_precision']
         config['LayerName']['pT_output']['Implementation'] = 'latency'
+        config["Model"]["TraceOutput"] = not build
 
         # Convert
         self.hls_jet_model = hls4ml.converters.convert_from_keras_model(

@@ -6,7 +6,7 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
     # parser.add_argument('-m', '--model_path', default='output2/baseline', help='Input model path for conversion')
-    parser.add_argument('-m', '--model_path', default='output2/gnn_tagger_v2', help='Input model path for conversion')
+    parser.add_argument('-m', '--model_path', default='output2/gnn_tagger_v3', help='Input model path for conversion')
     parser.add_argument(
         '-o', '--outpath', default='firmware', help='Jet tagger synthesized output directory'
     )

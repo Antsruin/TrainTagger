@@ -1,0 +1,129 @@
+Backend: Vitis
+ClockPeriod: 2.5
+ClockUncertainty: 27%
+HLSConfig:
+  LayerName:
+    act_0:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    adj_input:
+      Precision: ap_fixed<24,12,AP_RND,AP_SAT>
+      Trace: false
+      result: ap_fixed<24,12,AP_RND,AP_SAT>
+    bn_input:
+      Precision: ap_fixed<24,12,AP_RND,AP_SAT>
+      Trace: true
+      result: ap_fixed<24,12,AP_RND,AP_SAT>
+    dense_0:
+      Precision:
+        bias: ap_fixed<9,2,AP_RND,AP_SAT>
+        result: auto
+        weight: ap_fixed<9,2,AP_RND,AP_SAT>
+      Trace: true
+    dense_0_linear:
+      Precision:
+        result: auto
+      Trace: false
+    gcn_act_0:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    gcn_act_1:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    gcn_agg_0:
+      Precision: ap_fixed<24,12,AP_RND,AP_SAT>
+      Trace: true
+    gcn_agg_1:
+      Precision: ap_fixed<24,12,AP_RND,AP_SAT>
+      Trace: true
+    gcn_dense_0:
+      Precision:
+        bias: ap_fixed<9,2,AP_RND,AP_SAT>
+        result: auto
+        weight: ap_fixed<9,2,AP_RND,AP_SAT>
+      Trace: true
+    gcn_dense_0_linear:
+      Precision:
+        result: auto
+      Trace: false
+    gcn_dense_1:
+      Precision:
+        bias: ap_fixed<9,2,AP_RND,AP_SAT>
+        result: auto
+        weight: ap_fixed<9,2,AP_RND,AP_SAT>
+      Trace: true
+    gcn_dense_1_linear:
+      Precision:
+        result: auto
+      Trace: false
+    jet_id_classification:
+      Precision:
+        bias: ap_fixed<9,2,AP_RND,AP_SAT>
+        result: auto
+        weight: ap_fixed<9,2,AP_RND,AP_SAT>
+      Trace: true
+    jet_id_classification_linear:
+      Precision:
+        result: auto
+      Trace: false
+    jet_id_output:
+      Implementation: latency
+      Precision:
+        result: ap_ufixed<24,12,AP_RND,AP_SAT>
+      Trace: true
+    jet_pt_reg_0:
+      Precision:
+        bias: ap_fixed<9,2,AP_RND,AP_SAT>
+        result: auto
+        weight: ap_fixed<9,2,AP_RND,AP_SAT>
+      Trace: true
+    jet_pt_reg_0_linear:
+      Precision:
+        result: auto
+      Trace: false
+    jet_pt_reg_act_0:
+      Precision:
+        result: ufixed<9,0,RND_CONV,SAT,0>
+      Trace: true
+    model_input:
+      Precision: ap_fixed<24,12,AP_RND,AP_SAT>
+      Trace: false
+      result: ap_fixed<24,12,AP_RND,AP_SAT>
+    pT_output:
+      Implementation: latency
+      Precision:
+        bias: ap_fixed<16,6,AP_RND,AP_SAT>
+        result: ap_fixed<16,6,AP_RND,AP_SAT>
+        weight: ap_fixed<16,6,AP_RND,AP_SAT>
+      Trace: true
+    pT_output_linear:
+      Precision:
+        result: auto
+      Trace: false
+    pool:
+      Precision:
+        result: auto
+      Trace: true
+  Model:
+    BramFactor: 1000000000
+    Precision:
+      default: fixed<16,6>
+    ReuseFactor: 1
+    Strategy: Latency
+    TraceOutput: true
+IOType: io_parallel
+InputData: null
+KerasModel: !keras_model 'firmware/L1TGNNJetModel_V3/keras_model.keras'
+OutputDir: firmware/L1TGNNJetModel_V3
+OutputPredictions: null
+Part: xcvu13p-flga2577-2-e
+ProjectName: L1TGNNJetModel_V3
+Stamp: 1052fcac
+Version: 1.0.0
+WriterConfig:
+  Namespace: null
+  WriteTar: false
+  WriteWeightsTxt: true
